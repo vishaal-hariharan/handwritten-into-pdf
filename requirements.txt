@@ -3,3 +3,4 @@ easyocr
 fpdf
 pillow
 torch
+textblob
