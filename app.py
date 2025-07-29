@@ -6,10 +6,13 @@ import re
 from fpdf import FPDF
 import google.generativeai as genai
 
-# Configure Gemini using secret key
+# Show Gemini SDK version (debug)
+st.write("Gemini SDK version:", genai.__version__)
+
+# Configure Gemini with API key from secrets
 genai.configure(api_key=st.secrets["gemini_api_key"])
 
-# Gemini-powered cleanup function
+# Gemini text cleanup function (v1 format)
 def gemini_clean_text(ocr_text):
     prompt = f"""
     The following text was extracted from a handwritten image using OCR. It may contain spelling and grammatical mistakes. Clean it up, fix spelling, punctuation, and formatting.
@@ -17,22 +20,22 @@ def gemini_clean_text(ocr_text):
     OCR Text:
     {ocr_text}
     """
-    # ✅ Use the full model path here with default v1 API
     model = genai.GenerativeModel(model_name="models/gemini-pro")
-    response = model.generate_content(prompt)
+    response = model.generate_content([{"text": prompt}])
     return response.text.strip()
 
-
-# OCR setup
+# EasyOCR setup
 reader = easyocr.Reader(['en'])
 
-# App UI
+# Streamlit UI setup
 st.set_page_config(page_title="Smart OCR with Gemini", layout="centered")
 st.title("🧠 ChatGPT-Style OCR with Gemini AI")
-st.caption("Handwritten image → editable smart text → PDF")
+st.caption("Handwritten image → editable smart text → downloadable PDF")
 
+# Upload section
 uploaded_file = st.file_uploader("📤 Upload a Handwritten Image", type=['jpg', 'jpeg', 'png'])
 
+# Preprocess image for better OCR
 def preprocess_image(image):
     max_width = 1000
     if image.width > max_width:
@@ -45,22 +48,27 @@ def preprocess_image(image):
     image = image.filter(ImageFilter.SHARPEN)
     return image.convert('RGB')
 
+# Main logic
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert('RGB')
     st.image(image, caption="Original Image", use_column_width=True)
 
     if st.button("🔍 Extract & Clean Text"):
         with st.spinner("Processing..."):
+            # Enhance image
             processed_image = preprocess_image(image)
             st.image(processed_image, caption="Processed Image", use_column_width=True)
 
+            # Convert to NumPy for EasyOCR
             image_np = np.array(processed_image)
+
             try:
                 result = reader.readtext(image_np, detail=0)
             except Exception as e:
                 st.error(f"❌ OCR failed: {e}")
                 st.stop()
 
+            # Basic cleaning
             cleaned_lines = []
             for line in result:
                 line = re.sub(r'[^a-zA-Z0-9\s]', '', line)
@@ -70,16 +78,18 @@ if uploaded_file is not None:
 
             raw_text = "\n".join(cleaned_lines)
 
+            # Try Gemini cleanup
             try:
                 corrected_text = gemini_clean_text(raw_text)
             except Exception as e:
                 corrected_text = raw_text
-                st.warning(f"⚠️ Gemini cleanup failed. Showing raw text. ({e})")
+                st.warning(f"⚠️ Gemini cleanup failed. Showing raw text instead. ({e})")
 
+            # Editable output
             st.subheader("✏️ Final Editable Text")
-            final_text = st.text_area("You can manually fix if needed before PDF export:", value=corrected_text, height=300)
+            final_text = st.text_area("Fix anything here before exporting:", value=corrected_text, height=300)
 
-            # Generate PDF
+            # PDF export
             pdf = FPDF()
             pdf.add_page()
             pdf.set_font("Arial", size=12)
