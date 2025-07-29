@@ -17,9 +17,11 @@ def gemini_clean_text(ocr_text):
     OCR Text:
     {ocr_text}
     """
-    model = genai.GenerativeModel("gemini-pro")
+    # ✅ Use the full model path here with default v1 API
+    model = genai.GenerativeModel(model_name="models/gemini-pro")
     response = model.generate_content(prompt)
     return response.text.strip()
+
 
 # OCR setup
 reader = easyocr.Reader(['en'])
