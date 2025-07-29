@@ -3,6 +3,4 @@ easyocr
 fpdf
 pillow
 torch
-textblob
-google-generativeai
-
+google-generativeai>=0.4.1
